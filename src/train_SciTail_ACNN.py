@@ -178,7 +178,6 @@ def evaluate_lenet5(learning_rate=0.02, n_epochs=4, L2_weight=0.0000001, extra_s
         iter_accu=0
 
         for batch_id in train_batch_start: #for each batch
-            # iter means how many batches have been run, taking into loop
             iter = (epoch - 1) * n_train_batches + iter_accu +1
             iter_accu+=1
             train_id_batch = train_indices[batch_id:batch_id+batch_size]
