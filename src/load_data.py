@@ -195,6 +195,7 @@ def load_word2vec_to_init(rand_values, ivocab, word2vec):
     return rand_values
 
 def load_SciTailV1_dataset(maxlen=40):
+    nltk.download('punkt')
     root="/save/wenpeng/datasets/SciTailV1/tsv_format/"
     files=['scitail_1.0_train.tsv', 'scitail_1.0_dev.tsv', 'scitail_1.0_test.tsv']
     word2id={}  # store vocabulary, each word map to a id
@@ -212,14 +213,14 @@ def load_SciTailV1_dataset(maxlen=40):
         sents_r=[]
         sents_masks_r=[]
         labels=[]
-        readfile=open(root+files[i], 'r')
+        readfile=codecs.open(root+files[i], 'r', 'utf-8')
         for line in readfile:
             parts=line.strip().lower().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
             if len(parts)==3:
 
                 label=parts[2]  # keep label be 0 or 1
-                sentence_wordlist_l=parts[0].strip().lower().split()
-                sentence_wordlist_r=parts[1].strip().lower().split()
+                sentence_wordlist_l=nltk.word_tokenize(parts[0].strip().lower())
+                sentence_wordlist_r=nltk.word_tokenize(parts[1].strip().lower())
 
                 l_len=len(sentence_wordlist_l)
                 r_len = len(sentence_wordlist_r)
