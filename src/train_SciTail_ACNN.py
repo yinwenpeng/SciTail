@@ -118,8 +118,8 @@ def evaluate_lenet5(learning_rate=0.02, n_epochs=4, L2_weight=0.0000001, extra_s
     attentive_sent_embeddings_r = attentive_conv_layer.attentive_maxpool_vec_r
 
     "form input to LR classifier"
-    LR_input = T.concatenate([attentive_sent_embeddings_l,attentive_sent_embeddings_r],axis=1)
-    LR_input_size=2*hidden_size[1]
+    LR_input = T.concatenate([attentive_sent_embeddings_l,attentive_sent_embeddings_r,attentive_sent_embeddings_l*attentive_sent_embeddings_r],axis=1)
+    LR_input_size=3*hidden_size[1]
 
     U_a = create_ensemble_para(rng, 2, LR_input_size) # the weight matrix hidden_size*2
     LR_b = theano.shared(value=np.zeros((2,),dtype=theano.config.floatX),name='LR_b', borrow=True)  #bias for each target class
