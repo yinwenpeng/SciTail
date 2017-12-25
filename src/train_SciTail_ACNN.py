@@ -21,7 +21,7 @@ from load_data import load_SciTailV1_dataset,load_word2vec, load_word2vec_to_ini
 from common_functions import Conv_for_Pair,dropout_layer, store_model_to_file, elementwise_is_two,Conv_with_Mask_with_Gate, Conv_with_Mask, create_conv_para, L2norm_paraList, ABCNN, create_ensemble_para, cosine_matrix1_matrix2_rowwise, Diversify_Reg, Gradient_Cost_Para, GRU_Batch_Tensor_Input_with_Mask, create_LSTM_para
 
 
-def evaluate_lenet5(learning_rate=0.02, n_epochs=4, L2_weight=0.0000001, extra_size=4, emb_size=300, batch_size=50, filter_size=[3,3], maxSentLen=40, hidden_size=[300,300]):
+def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.0000001, extra_size=4, emb_size=300, batch_size=50, filter_size=[3,3], maxSentLen=40, hidden_size=[300,300]):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -238,3 +238,31 @@ def evaluate_lenet5(learning_rate=0.02, n_epochs=4, L2_weight=0.0000001, extra_s
 
 if __name__ == '__main__':
     evaluate_lenet5()
+    # lr_list=[0.005,0.01,0.02,0.03,0.001]
+    # batch_list=[10,20,30,40,50,60,70,80,100]
+    # maxlen_list=[20,25,30,35,40,45,50,55]
+    #
+    # best_acc=0.0
+    # best_lr=0.01
+    # for lr in lr_list:
+    #     acc_test= evaluate_lenet5(learning_rate=lr)
+    #     if acc_test>best_acc:
+    #         best_lr=lr
+    #         best_acc=acc_test
+    #     print '\t\t\t\tcurrent best_acc:', best_acc
+    # best_batch=50
+    # for batch in batch_list:
+    #     acc_test= evaluate_lenet5(learning_rate=best_lr,  batch_size=batch)
+    #     if acc_test>best_acc:
+    #         best_batch=batch
+    #         best_acc=acc_test
+    #     print '\t\t\t\tcurrent best_acc:', best_acc
+    #
+    # best_maxlen=40
+    # for maxlen in maxlen_list:
+    #     acc_test= evaluate_lenet5(learning_rate=best_lr,  batch_size=best_batch, maxSentLen=maxlen)
+    #     if acc_test>best_acc:
+    #         best_maxlen=maxlen
+    #         best_acc=acc_test
+    #     print '\t\t\t\tcurrent best_acc:', best_acc
+    # print 'Hyper tune finished, best test acc: ', best_acc, ' by  lr: ', best_lr, ' batch: ', best_batch, ' maxlen: ', best_maxlen
