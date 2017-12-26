@@ -21,7 +21,7 @@ from load_data import load_SciTailV1_dataset,load_word2vec, load_word2vec_to_ini
 from common_functions import Conv_for_Pair,dropout_layer, store_model_to_file, elementwise_is_two,Conv_with_Mask_with_Gate, Conv_with_Mask, create_conv_para, L2norm_paraList, ABCNN, create_ensemble_para, cosine_matrix1_matrix2_rowwise, Diversify_Reg, Gradient_Cost_Para, GRU_Batch_Tensor_Input_with_Mask, create_LSTM_para
 
 
-def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.0000001, extra_size=4, emb_size=300, batch_size=50, filter_size=[3,3], maxSentLen=40, hidden_size=[300,300]):
+def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_size=4, emb_size=300, batch_size=50, filter_size=[3,3], maxSentLen=50, hidden_size=[300,300]):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -134,8 +134,9 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.0000001, extra_
 
 
     params = [init_embeddings]+NN_para+LR_para
+    # L2_reg = (init_embeddings**2).sum()+(conv_W**2).sum()+(conv_W_context**2).sum()+(U_a**2).sum()
 
-    cost=loss
+    cost=loss#+L2_weight*L2_reg
 
     updates =   Gradient_Cost_Para(cost,params, learning_rate)
 
