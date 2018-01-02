@@ -21,7 +21,7 @@ from load_data import load_SciTailV1_dataset,load_word2vec, load_word2vec_to_ini
 from common_functions import Conv_for_Pair,dropout_layer, store_model_to_file, elementwise_is_two,Conv_with_Mask_with_Gate, Conv_with_Mask, create_conv_para, L2norm_paraList, ABCNN, create_ensemble_para, cosine_matrix1_matrix2_rowwise, Diversify_Reg, Gradient_Cost_Para, GRU_Batch_Tensor_Input_with_Mask, create_LSTM_para
 
 
-def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_size=4, emb_size=300, batch_size=50, filter_size=[3,3], maxSentLen=50, hidden_size=[300,300]):
+def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_size=4, emb_size=300, batch_size=50, filter_size=[3,3], maxSentLen=50, hidden_size=300):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -92,8 +92,8 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_s
 
 
     '''create_AttentiveConv_params '''
-    conv_W, conv_b=create_conv_para(rng, filter_shape=(hidden_size[1], 1, hidden_size[0], filter_size[0]))
-    conv_W_context, conv_b_context=create_conv_para(rng, filter_shape=(hidden_size[1], 1, hidden_size[0], 1))
+    conv_W, conv_b=create_conv_para(rng, filter_shape=(hidden_size, 1, emb_size, filter_size[0]))
+    conv_W_context, conv_b_context=create_conv_para(rng, filter_shape=(hidden_size, 1, emb_size, 1))
 
     NN_para=[conv_W, conv_b,conv_W_context]
 
@@ -108,18 +108,21 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_s
             input_tensor3_r = embed_input_r,
              mask_matrix = sents_mask_l,
              mask_matrix_r = sents_mask_r,
-             image_shape=(batch_size, 1, hidden_size[0], maxSentLen),
-             image_shape_r = (batch_size, 1, hidden_size[0], maxSentLen),
-             filter_shape=(hidden_size[1], 1, hidden_size[0], filter_size[0]),
-             filter_shape_context=(hidden_size[1], 1,hidden_size[0], 1),
+             image_shape=(batch_size, 1, emb_size, maxSentLen),
+             image_shape_r = (batch_size, 1, emb_size, maxSentLen),
+             filter_shape=(hidden_size, 1, emb_size, filter_size[0]),
+             filter_shape_context=(hidden_size, 1,emb_size, 1),
              W=conv_W, b=conv_b,
              W_context=conv_W_context, b_context=conv_b_context)
     attentive_sent_embeddings_l = attentive_conv_layer.attentive_maxpool_vec_l
     attentive_sent_embeddings_r = attentive_conv_layer.attentive_maxpool_vec_r
 
+    sent_embeddings_l = attentive_conv_layer.maxpool_vec_l
+    sent_embeddings_r = attentive_conv_layer.maxpool_vec_r
+
     "form input to LR classifier"
-    LR_input = T.concatenate([attentive_sent_embeddings_l,attentive_sent_embeddings_r,attentive_sent_embeddings_l*attentive_sent_embeddings_r],axis=1)
-    LR_input_size=3*hidden_size[1]
+    LR_input = T.concatenate([sent_embeddings_l,sent_embeddings_r,sent_embeddings_l*sent_embeddings_r,attentive_sent_embeddings_l,attentive_sent_embeddings_r,attentive_sent_embeddings_l*attentive_sent_embeddings_r],axis=1)
+    LR_input_size=6*hidden_size
 
     U_a = create_ensemble_para(rng, 2, LR_input_size) # the weight matrix hidden_size*2
     LR_b = theano.shared(value=np.zeros((2,),dtype=theano.config.floatX),name='LR_b', borrow=True)  #bias for each target class
