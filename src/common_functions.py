@@ -229,9 +229,10 @@ class Conv_for_Pair(object):
     """we define CNN by input tensor3 and output tensor3, like RNN, filter width must by 3,5,7..."""
 
     def __init__(self, rng, origin_input_tensor3, origin_input_tensor3_r, input_tensor3, input_tensor3_r, mask_matrix, mask_matrix_r,
-                 filter_shape, filter_shape_context,image_shape, image_shape_r,W, b, W_context, b_context):
+                 filter_shape, filter_shape_context,image_shape, image_shape_r,W, b, W_posi, b_posi,W_context, b_context,posi_emb_matrix,posi_emb_size):
         batch_size = origin_input_tensor3.shape[0]
         hidden_size = origin_input_tensor3.shape[1]
+        # posi_emb_size = posi_emb_matrix.shape[1]
         l_len = origin_input_tensor3.shape[2]
         r_len = origin_input_tensor3_r.shape[2]
         #construct interaction matrix
@@ -240,6 +241,14 @@ class Conv_for_Pair(object):
         # mask_tensor3 = T.batched_dot(mask_matrix.dimshuffle(0,1,'x'), mask_matrix_r.dimshuffle(0,'x',1)) #(batch, l_len, r_len)
         dot_tensor3 = T.batched_dot(input_tensor3.dimshuffle(0,2,1),input_tensor3_r) #(batch, l_len, r_len)
         # masked_dot_tensor3  = T.switch(mask_tensor3, dot_tensor3, np.float32(-1e+20))
+        '''
+        try to get position shift of best match
+        '''
+        aligned_posi_l = T.argmax(dot_tensor3, axis=2).flatten()
+        posi_emb_tensor3_l = posi_emb_matrix[aligned_posi_l].reshape((batch_size,dot_tensor3.shape[1],posi_emb_size)).dimshuffle(0,2,1) #(batch, emb_size, l_len)
+        aligned_posi_r = T.argmax(dot_tensor3, axis=1).flatten()
+        posi_emb_tensor3_r = posi_emb_matrix[aligned_posi_r].reshape((batch_size,dot_tensor3.shape[2],posi_emb_size)).dimshuffle(0,2,1) #(batch, emb_size, r_len)
+
 
 #         self.cosine_tensor3 = dot_tensor3
         # self.cosine_tensor3 = dot_tensor3/(1e-8+T.batched_dot(T.sqrt(1e-8+T.sum(input_tensor3**2, axis=1)).dimshuffle(0,1,'x'), T.sqrt(1e-8+T.sum(input_tensor3_r**2, axis=1)).dimshuffle(0,'x', 1)))
@@ -285,6 +294,8 @@ class Conv_for_Pair(object):
         # dot_tensor3_for_right = fine_grained_softmax_tensor3(dot_tensor3,left_boundaries_r)
         weighted_sum_r = T.batched_dot(dot_tensor3_for_right, input_tensor3_r.dimshuffle(0,2,1)).dimshuffle(0,2,1)*mask_matrix.dimshuffle(0,'x',1) #(batch,hidden, l_len)
 
+        # posi_emb_tensor3_l = T.batched_dot(dot_tensor3_for_right, T.extra_ops.repeat(posi_emb_matrix.dimshuffle('x',0,1),batch_size, axis=0)).dimshuffle(0,2,1)
+
         dot_matrix_for_left = T.nnet.softmax(dot_tensor3.dimshuffle(0,2,1).reshape((batch_size*r_len, l_len))) #(batch*r_len, l_len)
         dot_tensor3_for_left = dot_matrix_for_left.reshape((batch_size, r_len, l_len))#(batch, r_len, l_len)
 #         argsort_left = T.argsort(dot_matrix_for_left, axis=1)#(batch*r_len, l_len)
@@ -294,6 +305,7 @@ class Conv_for_Pair(object):
         # dot_tensor3_for_left = fine_grained_softmax_tensor3(dot_tensor3.dimshuffle(0,2,1),left_boundaries_l)
 
         weighted_sum_l = T.batched_dot(dot_tensor3_for_left, input_tensor3.dimshuffle(0,2,1)).dimshuffle(0,2,1)*mask_matrix_r.dimshuffle(0,'x',1) #(batch,hidden, r_len)
+        # posi_emb_tensor3_r = T.batched_dot(dot_tensor3_for_left, T.extra_ops.repeat(posi_emb_matrix.dimshuffle('x',0,1),batch_size, axis=0)).dimshuffle(0,2,1)
 
         #convolve left, weighted sum r
         biased_conv_model_l = Conv_with_Mask(rng, input_tensor3=origin_input_tensor3*l_max_cos.dimshuffle(0,'x',1),
@@ -303,10 +315,10 @@ class Conv_for_Pair(object):
         biased_temp_conv_output_l = biased_conv_model_l.naked_conv_out
         self.conv_out_l = biased_conv_model_l.masked_conv_out
         self.maxpool_vec_l = biased_conv_model_l.maxpool_vec
-        conv_model_l = Conv_with_Mask(rng, input_tensor3=origin_input_tensor3,
+        conv_model_l = Conv_with_Mask(rng, input_tensor3=T.concatenate([origin_input_tensor3,posi_emb_tensor3_l],axis=1),
                  mask_matrix = mask_matrix,
-                 image_shape=image_shape,
-                 filter_shape=filter_shape, W=W, b=b)
+                 image_shape=(image_shape[0], image_shape[1], image_shape[2]+posi_emb_size, image_shape[3]),
+                 filter_shape=(filter_shape[0],filter_shape[1],filter_shape[2]+posi_emb_size,filter_shape[3]), W=W_posi, b=b_posi)
         temp_conv_output_l = conv_model_l.naked_conv_out
         conv_model_weighted_r = Conv_with_Mask(rng, input_tensor3=weighted_sum_r,
                  mask_matrix = mask_matrix,
@@ -325,7 +337,7 @@ class Conv_for_Pair(object):
         masked_biased_conv_output_l=self.biased_conv_attend_out_l+mask_for_conv_output_l      #mutiple mask with the conv_out to set the features by UNK to zero
         self.biased_attentive_maxpool_vec_l=T.max(masked_biased_conv_output_l, axis=2) #(batch_size, hidden_size) # each sentence then have an embedding of length hidden_size
 
-        self.conv_attend_out_l = T.tanh(temp_conv_output_l+ temp_conv_output_weighted_r+ b.dimshuffle('x', 0, 'x'))*mask_matrix.dimshuffle(0,'x',1)
+        self.conv_attend_out_l = T.tanh(temp_conv_output_l+ temp_conv_output_weighted_r+ b_posi.dimshuffle('x', 0, 'x'))*mask_matrix.dimshuffle(0,'x',1)
         masked_conv_output_l=self.conv_attend_out_l+mask_for_conv_output_l      #mutiple mask with the conv_out to set the features by UNK to zero
         self.attentive_maxpool_vec_l=T.max(masked_conv_output_l, axis=2) #(batch_size, hidden_size) # each sentence then have an embedding of length hidden_size
 #         valid_left_vec_l = T.cast(masked_conv_output_l.shape[2]-T.sum(mask_matrix, axis=1), 'int32')
@@ -342,10 +354,10 @@ class Conv_for_Pair(object):
         biased_temp_conv_output_r = biased_conv_model_r.naked_conv_out
         self.conv_out_r = biased_conv_model_r.masked_conv_out
         self.maxpool_vec_r = biased_conv_model_r.maxpool_vec
-        conv_model_r = Conv_with_Mask(rng, input_tensor3=origin_input_tensor3_r,
+        conv_model_r = Conv_with_Mask(rng, input_tensor3=T.concatenate([origin_input_tensor3_r,posi_emb_tensor3_r],axis=1),
                  mask_matrix = mask_matrix_r,
-                 image_shape=image_shape_r,
-                 filter_shape=filter_shape, W=W, b=b)
+                 image_shape=(image_shape_r[0],image_shape_r[1],image_shape_r[2]+posi_emb_size,image_shape_r[3]),
+                 filter_shape=(filter_shape[0],filter_shape[1],filter_shape[2]+posi_emb_size,filter_shape[3]), W=W_posi, b=b_posi)
         temp_conv_output_r = conv_model_r.naked_conv_out
         conv_model_weighted_l = Conv_with_Mask(rng, input_tensor3=weighted_sum_l,
                  mask_matrix = mask_matrix_r,
@@ -361,7 +373,7 @@ class Conv_for_Pair(object):
         self.biased_conv_attend_out_r = T.tanh(biased_temp_conv_output_r+ temp_conv_output_weighted_l+ b.dimshuffle('x', 0, 'x'))*mask_matrix_r.dimshuffle(0,'x',1)
         self.biased_attentive_sumpool_vec_r=T.sum(self.biased_conv_attend_out_r, axis=2)
         self.biased_attentive_meanpool_vec_r=self.biased_attentive_sumpool_vec_r/T.sum(mask_matrix_r,axis=1).dimshuffle(0,'x')
-        self.conv_attend_out_r = T.tanh(temp_conv_output_r+ temp_conv_output_weighted_l+ b.dimshuffle('x', 0, 'x'))*mask_matrix_r.dimshuffle(0,'x',1)
+        self.conv_attend_out_r = T.tanh(temp_conv_output_r+ temp_conv_output_weighted_l+ b_posi.dimshuffle('x', 0, 'x'))*mask_matrix_r.dimshuffle(0,'x',1)
                 # self.attentive_sumpool_vec_r=T.sum(self.conv_attend_out_r, axis=2)
 
         masked_biased_conv_output_r=self.biased_conv_attend_out_r+mask_for_conv_output_r      #mutiple mask with the conv_out to set the features by UNK to zero

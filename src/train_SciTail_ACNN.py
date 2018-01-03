@@ -21,7 +21,7 @@ from load_data import load_SciTailV1_dataset,load_word2vec, load_word2vec_to_ini
 from common_functions import Conv_for_Pair,dropout_layer, store_model_to_file, elementwise_is_two,Conv_with_Mask_with_Gate, Conv_with_Mask, create_conv_para, L2norm_paraList, ABCNN, create_ensemble_para, cosine_matrix1_matrix2_rowwise, Diversify_Reg, Gradient_Cost_Para, GRU_Batch_Tensor_Input_with_Mask, create_LSTM_para
 
 
-def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_size=4, emb_size=300, batch_size=50, filter_size=[3,3], maxSentLen=50, hidden_size=300):
+def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_size=4, emb_size=300, posi_emb_size=50,batch_size=50, filter_size=[3,3], maxSentLen=50, hidden_size=300):
 
     model_options = locals().copy()
     print "model options", model_options
@@ -71,6 +71,9 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_s
     rand_values=load_word2vec_to_init(rand_values, id2word, word2vec)
     init_embeddings=theano.shared(value=np.array(rand_values,dtype=theano.config.floatX), borrow=True)   #wrap up the python variable "rand_values" into theano variable
 
+    posi_rand_values=rng.normal(0.0, 0.01, (maxSentLen, posi_emb_size))   #generate a matrix by Gaussian distribution
+    posi_embeddings=theano.shared(value=np.array(posi_rand_values,dtype=theano.config.floatX), borrow=True)   #wrap up the python variable "rand_values" into theano variable
+
 
     #now, start to build the input form of the model
     sents_ids_l=T.imatrix()
@@ -93,9 +96,10 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_s
 
     '''create_AttentiveConv_params '''
     conv_W, conv_b=create_conv_para(rng, filter_shape=(hidden_size, 1, emb_size, filter_size[0]))
+    conv_W_posi, conv_b_posi=create_conv_para(rng, filter_shape=(hidden_size, 1, emb_size+posi_emb_size, filter_size[0]))
     conv_W_context, conv_b_context=create_conv_para(rng, filter_shape=(hidden_size, 1, emb_size, 1))
 
-    NN_para=[conv_W, conv_b,conv_W_context]
+    NN_para=[conv_W, conv_b,conv_W_posi, conv_b_posi,conv_W_context]
 
     '''
     attentive convolution function
@@ -113,7 +117,10 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_s
              filter_shape=(hidden_size, 1, emb_size, filter_size[0]),
              filter_shape_context=(hidden_size, 1,emb_size, 1),
              W=conv_W, b=conv_b,
-             W_context=conv_W_context, b_context=conv_b_context)
+             W_posi=conv_W_posi, b_posi=conv_b_posi,
+             W_context=conv_W_context, b_context=conv_b_context,
+             posi_emb_matrix = posi_embeddings,
+             posi_emb_size = posi_emb_size)
     attentive_sent_embeddings_l = attentive_conv_layer.attentive_maxpool_vec_l
     attentive_sent_embeddings_r = attentive_conv_layer.attentive_maxpool_vec_r
 
@@ -136,7 +143,7 @@ def evaluate_lenet5(learning_rate=0.01, n_epochs=10, L2_weight=0.000001, extra_s
 
 
 
-    params = [init_embeddings]+NN_para+LR_para
+    params = [init_embeddings,posi_embeddings]+NN_para+LR_para
     # L2_reg = (init_embeddings**2).sum()+(conv_W**2).sum()+(conv_W_context**2).sum()+(U_a**2).sum()
 
     cost=loss#+L2_weight*L2_reg
