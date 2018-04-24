@@ -1,0 +1,30 @@
+... training
+Epoch  1 iter 100 average cost: 0.50105274111 uses  0.274652850628 min
+	current dev_acc: 0.774814814815  ;  	max_dev_acc: 0.774814814815
+		current acc: 0.763255813953  ;  		max_acc: 0.763255813953
+Epoch  1 iter 200 average cost: 0.427455786616 uses  0.3303023537 min
+	current dev_acc: 0.788888888889  ;  	max_dev_acc: 0.788888888889
+		current acc: 0.782325581395  ;  		max_acc: 0.782325581395
+Epoch  1 iter 300 average cost: 0.38460314619 uses  0.324084401131 min
+	current dev_acc: 0.795555555556  ;  	max_dev_acc: 0.795555555556
+		current acc: 0.799534883721  ;  		max_acc: 0.799534883721
+Epoch  1 iter 400 average cost: 0.36287988646 uses  0.327256147067 min
+	current dev_acc: 0.800740740741  ;  	max_dev_acc: 0.800740740741
+		current acc: 0.801860465116  ;  		max_acc: 0.801860465116
+Epoch  1 uses  1.50898130337 min
+Epoch  2 iter 500 average cost: 0.335963069856 uses  0.33199198246 min
+Epoch  2 iter 600 average cost: 0.301583123356 uses  0.296971384684 min
+	current dev_acc: 0.817777777778  ;  	max_dev_acc: 0.817777777778
+		current acc: 0.811162790698  ;  		max_acc: 0.811162790698
+Epoch  2 iter 700 average cost: 0.27583842698 uses  0.333897197247 min
+	current dev_acc: 0.819259259259  ;  	max_dev_acc: 0.819259259259
+		current acc: 0.807441860465  ;  		max_acc: 0.811162790698
+Epoch  2 iter 800 average cost: 0.256100475551 uses  0.333747748534 min
+	current dev_acc: 0.823703703704  ;  	max_dev_acc: 0.823703703704
+		current acc: 0.820465116279  ;  		max_acc: 0.820465116279
+Epoch  2 iter 900 average cost: 0.240837877587 uses  0.336418318748 min
+Epoch  2 uses  1.52058656613 min
+Epoch  3 iter 1000 average cost: 0.224601259664 uses  0.300214282672 min
+Epoch  3 iter 1100 average cost: 0.209052862727 uses  0.297549700737 min
+Epoch  3 iter 1200 average cost: 0.195848352684 uses  0.296437966824 min
+Epoch  3 iter 1300 average cost: 0.184916155527 uses  0.29627721707 min

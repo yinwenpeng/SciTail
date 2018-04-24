@@ -14,12 +14,25 @@ def transfer_wordlist_2_idlist_with_maxlen(token_list, vocab_map, maxlen):
     '''
     idlist=[]
     for word in token_list:
-
-        id=vocab_map.get(word)
-        if id is None: # if word was not in the vocabulary
-            id=len(vocab_map)+1  # id of true words starts from 1, leaving 0 to "pad id"
-            vocab_map[word]=id
-        idlist.append(id)
+        position = word.find('-')
+        if position<0:
+#             if word not in string.punctuation:
+#                 word =  word.translate(None, string.punctuation)
+            id=vocab_map.get(word)
+            if id is None: # if word was not in the vocabulary
+                id=len(vocab_map)+1  # id of true words starts from 1, leaving 0 to "pad id"
+                vocab_map[word]=id
+            idlist.append(id)
+        else:
+            subwords = word.split('-')
+            for subword in subwords:
+#                 if subword not in string.punctuation:
+#                     subword =  subword.translate(None, string.punctuation)
+                id=vocab_map.get(subword)
+                if id is None: # if word was not in the vocabulary
+                    id=len(vocab_map)+1  # id of true words starts from 1, leaving 0 to "pad id"
+                    vocab_map[subword]=id
+                idlist.append(id)
 
     mask_list=[1.0]*len(idlist) # mask is used to indicate each word is a true word or a pad word
     pad_size=maxlen-len(idlist)
@@ -63,6 +76,51 @@ def transfer_wordlist_2_idlist_with_maxlen_return_wordlist(token_list, vocab_map
         idlist.append(id)
         mask_list.append(1.0)
     return idlist, mask_list, token_list
+
+def load_NYT_dataset(maxlen, word2id):
+    root="/save/wenpeng/datasets/NYT/"
+    files=['test_into_sentStatements_fullyReplaceRel.txt']#test_into_sentStatements.txt
+    # word2id={}  # store vocabulary, each word map to a id
+    sents_l=[]
+    sents_masks_l=[]
+    sents_r=[]
+    sents_masks_r=[]
+    labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+
+        readfile=open(root+files[i], 'r')
+        for line in readfile:
+            parts=line.strip().split('\t') #we do not lowercase, looks better performance
+            # print parts
+            if len(parts)>=3 and parts[2]=='0' or parts[2]=='1':
+
+                label=int(parts[2])  # keep label be 0 or 1
+                sentence_wordlist_l=parts[0].strip().lower().split()
+                sentence_wordlist_r=parts[1].strip().lower().split()
+
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                labels.append(label)
+
+
+        print '\t\t\t size:', len(labels), 'pairs'
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return sents_l, sents_masks_l, sents_r, sents_masks_r,labels, word2id
 
 def load_yelp_dataset(maxlen=100, minlen=4):
     root="/mounts/data/proj/wenpeng/Dataset/yelp/"
@@ -193,6 +251,426 @@ def load_word2vec_to_init(rand_values, ivocab, word2vec):
             fail+=1
     print '==> use word2vec initialization over...fail ', fail
     return rand_values
+
+def load_multiSNLI_dataset(maxlen=40):
+    labelstr2labelint={'neutral':2, 'entailment':1, 'contradiction':0}
+    root="/save/wenpeng/datasets/multinli_1.0/"
+    files=['multinli_1.0_train.txt.txt','multinli_1.0_dev_mismatched.txt.txt']
+    word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=open(root+files[i], 'r')
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==3:
+
+                label=labelstr2labelint.get(parts[0])  # keep label be 0 or 1
+                assert label in set([0,1,2])
+                sentence_wordlist_l=parts[1].strip().lower().split()
+                sentence_wordlist_r=parts[2].strip().lower().split()
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len> 1000 or r_len>1000:
+                    print line
+                    exit(0)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                labels.append(label)
+
+
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs'
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
+
+def load_MSRP_MT_features(feature_size):
+    root="/save/wenpeng/datasets/Dataset/paraphraseMT/"
+    files=['concate_'+str(feature_size)+'mt_train.txt', 'concate_'+str(feature_size)+'mt_test.txt']
+    features=[]
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        file_features = []
+        readfile=open(root+files[i], 'r')
+        line_co=0
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            assert len(parts) == feature_size
+            if len(parts)==feature_size:
+
+                file_features.append(map(float, parts))
+
+                line_co+=1
+        features.append(file_features)
+        print '\t\t\t size:', line_co, 'lines'
+        readfile.close()
+    return features
+
+def load_QuaroParaphrase_dataset(maxlen=40):
+    root="/save/wenpeng/datasets/QuaroParaphrase/Quora_question_pair_partition/"
+    files=['train.tsv', 'test.tsv']
+    word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=open(root+files[i], 'r')
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==4:
+
+                label=int(parts[0])  # keep label be 0 or 1
+                sentence_wordlist_l=parts[1].strip().lower().split()
+                sentence_wordlist_r=parts[2].strip().lower().split()
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                labels.append(label)
+
+
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs'
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
+
+def load_MSRP_dataset(maxlen=40):
+    root="/save/wenpeng/datasets/Dataset/MicrosoftParaphrase/"
+    files=['tokenized_train.txt', 'tokenized_test.txt']
+    word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=open(root+files[i], 'r')
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==3:
+
+                label=int(parts[0])  # keep label be 0 or 1
+                sentence_wordlist_l=parts[1].strip().lower().split()
+                sentence_wordlist_r=parts[2].strip().lower().split()
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                labels.append(label)
+
+
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs'
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
+
+
+def load_SNLI_dataset(maxlen=40):
+    root="/save/wenpeng/datasets/StanfordEntailment/"
+    files=['train.txt', 'dev.txt', 'test.txt']
+    word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=open(root+files[i], 'r')
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==3:
+
+                label=int(parts[0])  # keep label be 0 or 1
+                sentence_wordlist_l=parts[1].strip().lower().split()
+                sentence_wordlist_r=parts[2].strip().lower().split()
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                labels.append(label)
+
+
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs'
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
+
+
+def load_RTE_dataset(maxlen=40):
+    # nltk.download('punkt')
+    root="/save/wenpeng/datasets/RTE/"
+    # files=['RTE3_dev_3ways.xml.txt', 'RTE3_test_3ways.xml.txt']
+    files=['RTE5_MainTask_DevSet.xml.txt', 'RTE5_MainTask_TestSet_Gold.xml.txt']
+    word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=codecs.open(root+files[i], 'r', 'utf-8')
+        # sum_label = [0]*3
+        line_co=0
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==3:
+
+                label=int(parts[0])  # keep label be 0 or 1
+                # sum_label[label]+=1
+                sentence_wordlist_l=parts[1].replace('-', ' ').split()
+                sentence_wordlist_r=parts[2].replace('-', ' ').split()
+
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                labels.append(label)
+
+                line_co+=1
+
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs,', line_co
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
+
+def load_RTE_dataset_as_test(maxlen, word2id):
+    # nltk.download('punkt')
+    root="/save/wenpeng/datasets/RTE/"
+    # files=['RTE3_dev_3ways.xml.txt', 'RTE3_test_3ways.xml.txt']
+    files=['RTE5_MainTask_DevSet.xml.txt', 'RTE5_MainTask_TestSet_Gold.xml.txt']
+    # word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=codecs.open(root+files[i], 'r', 'utf-8')
+        sum_label = [0]*2
+        line_co=0
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==3:
+
+                label=int(parts[0])  # keep label be 0 or 1
+                sum_label[label]+=1
+                sentence_wordlist_l=parts[1].replace('-', ' ').split()
+                sentence_wordlist_r=parts[2].replace('-', ' ').split()
+
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                labels.append(label)
+
+                line_co+=1
+
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs:', sum_label
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
+
+
+def load_SciTailV1_forfun(maxlen=40):
+    # nltk.download('punkt')
+    root="/save/wenpeng/datasets/SciTailV1/tsv_format/"
+    files=['scitail_1.0_train_2_ExtreamPosNeg.txt', 'scitail_1.0_dev.tsv', 'scitail_1.0_test.tsv']
+    word2id={}  # store vocabulary, each word map to a id
+    all_sentences_l=[]
+    all_masks_l=[]
+    all_sentences_r=[]
+    all_masks_r=[]
+    all_labels=[]
+    max_sen_len=0
+    for i in range(len(files)):
+        print 'loading file:', root+files[i], '...'
+
+        sents_l=[]
+        sents_masks_l=[]
+        sents_r=[]
+        sents_masks_r=[]
+        labels=[]
+        readfile=codecs.open(root+files[i], 'r', 'utf-8')
+        for line in readfile:
+            parts=line.strip().split('\t') #lowercase all tokens, as we guess this is not important for sentiment task
+            if len(parts)==3:
+
+                label=parts[2]  # keep label be 0 or 1
+                sentence_wordlist_l=parts[0].strip().split()#[x  for x in nltk.word_tokenize(parts[0].strip()) if x.isalpha()]
+                sentence_wordlist_r=parts[1].strip().split()#[x  for x in nltk.word_tokenize(parts[1].strip()) if x.isalpha()]
+
+                l_len=len(sentence_wordlist_l)
+                r_len = len(sentence_wordlist_r)
+                if l_len > max_sen_len:
+                    max_sen_len=l_len
+                if r_len > max_sen_len:
+                    max_sen_len=r_len
+
+                sent_idlist_l, sent_masklist_l=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_l, word2id, maxlen)
+                sent_idlist_r, sent_masklist_r=transfer_wordlist_2_idlist_with_maxlen(sentence_wordlist_r, word2id, maxlen)
+
+
+                sents_l.append(sent_idlist_l)
+                sents_masks_l.append(sent_masklist_l)
+                sents_r.append(sent_idlist_r)
+                sents_masks_r.append(sent_masklist_r)
+                if label == 'neutral':
+                    labels.append(0)
+                elif label == 'entails':
+                    labels.append(1)
+                else:
+                    print 'wrong label: ', line
+                    exit(0)
+
+
+        all_sentences_l.append(sents_l)
+        all_sentences_r.append(sents_r)
+        all_masks_l.append(sents_masks_l)
+        all_masks_r.append(sents_masks_r)
+        all_labels.append(labels)
+        print '\t\t\t size:', len(labels), 'pairs'
+    print 'dataset loaded over, totally ', len(word2id), 'words, max sen len:',   max_sen_len
+    return all_sentences_l, all_masks_l, all_sentences_r, all_masks_r,all_labels, word2id
 
 def load_SciTailV1_dataset(maxlen=40):
     # nltk.download('punkt')
